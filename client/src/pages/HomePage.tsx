@@ -26,7 +26,7 @@ interface Question {
     _id: string;
     username: string;
   };
-  tags: string[];
+  tags: Array<{ _id: string; name: string } | null>;
   votes: Array<{ userId: string; vote: number }>;
   answers: string[];
   acceptedAnswerId?: string;
@@ -60,6 +60,7 @@ const HomePage = () => {
         }
 
         const data: ServerResponse = await response.json();
+        console.log("Question Data : ", data.questions);
         setQuestions(data.questions);
       } catch (err: any) {
         setError(err.message);
@@ -91,27 +92,37 @@ const HomePage = () => {
     }
   });
 
-  const handleDeleteQuestion = async (questionId: string, questionTitle: string) => {
-    if (!user || user.role !== 'admin') return;
-    
-    if (!confirm(`Are you sure you want to delete the question "${questionTitle}" and all its answers? This action cannot be undone.`)) {
+  const handleDeleteQuestion = async (
+    questionId: string,
+    questionTitle: string
+  ) => {
+    if (!user || user.role !== "admin") return;
+
+    if (
+      !confirm(
+        `Are you sure you want to delete the question "${questionTitle}" and all its answers? This action cannot be undone.`
+      )
+    ) {
       return;
     }
 
     try {
-      const response = await fetch(`${backend}/api/questions/${questionId}/admin-delete`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const response = await fetch(
+        `${backend}/api/questions/${questionId}/admin-delete`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to delete question');
+        throw new Error("Failed to delete question");
       }
 
       // Remove the question from local state
-      setQuestions(questions.filter(q => q._id !== questionId));
+      setQuestions(questions.filter((q) => q._id !== questionId));
 
       toast({
         title: "Question deleted",
@@ -127,22 +138,29 @@ const HomePage = () => {
   };
 
   const handleBanUser = async (userId: string, username: string) => {
-    if (!user || user.role !== 'admin') return;
-    
-    if (!confirm(`Are you sure you want to ban user "${username}"? This will prevent them from logging in.`)) {
+    if (!user || user.role !== "admin") return;
+
+    if (
+      !confirm(
+        `Are you sure you want to ban user "${username}"? This will prevent them from logging in.`
+      )
+    ) {
       return;
     }
 
     try {
-      const response = await fetch(`${backend}/api/admin/ban-user/${userId}?banned=true`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const response = await fetch(
+        `${backend}/api/admin/ban-user/${userId}?banned=true`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to ban user');
+        throw new Error("Failed to ban user");
       }
 
       toast({
@@ -249,12 +267,14 @@ const HomePage = () => {
                         {question.title}
                       </h3>
                     </Link>
-                    {user && user.role === 'admin' && (
+                    {user && user.role === "admin" && (
                       <div className="flex items-center space-x-2 ml-4">
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDeleteQuestion(question._id, question.title)}
+                          onClick={() =>
+                            handleDeleteQuestion(question._id, question.title)
+                          }
                           className="flex items-center space-x-1"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -262,7 +282,12 @@ const HomePage = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleBanUser(question.userId._id, question.userId.username)}
+                          onClick={() =>
+                            handleBanUser(
+                              question.userId._id,
+                              question.userId.username
+                            )
+                          }
                           className="flex items-center space-x-1 text-red-600 border-red-600 hover:bg-red-50"
                         >
                           <UserX className="h-4 w-4" />
@@ -276,17 +301,23 @@ const HomePage = () => {
                   </p>
 
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {question.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
+                    {question.tags
+                      ?.filter((tag) => tag != null)
+                      .map((tag) => (
+                        <Badge
+                          key={tag._id}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
                   </div>
 
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      <span>{question.userId.username}</span>
+                      <span>{question.userId?.username ?? "Unknown User"}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />

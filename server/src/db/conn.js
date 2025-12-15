@@ -8,6 +8,7 @@ function mongoConnect() {
     })
     .then(() => {
         console.log("MongoDB Connection Success");
+        console.log("MongoDB URI:", MONGO_URI);
     })
     .catch((e) => {
         console.log("MongoDB Connection Error:", e);

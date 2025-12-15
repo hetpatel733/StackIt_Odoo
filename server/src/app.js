@@ -19,7 +19,13 @@ const port = process.env.PORT || 8000;
 const static_path = path.join(__dirname, "../public");
 
 // Middleware
-app.use(cors());
+app.use(cors(
+  {
+    origin: ["https://stackit-odoo.onrender.com","https://stackit-new.vercel.app/"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }
+));
 app.use(express.static(static_path));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
