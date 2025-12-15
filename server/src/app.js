@@ -21,8 +21,9 @@ const static_path = path.join(__dirname, "../public");
 // Middleware
 app.use(cors(
   {
-    origin: ["https://stackit-odoo.onrender.com","https://stackit-new.vercel.app/"],
+    origin: ["https://stackit-odoo.onrender.com", "https://stackit-new.vercel.app"],
     methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
   }
 ));
