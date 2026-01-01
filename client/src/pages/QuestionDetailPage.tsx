@@ -9,6 +9,9 @@ import {
   Loader2,
   Trash2,
   UserX,
+  Edit,
+  X,
+  Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +19,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import RichTextEditor from "@/components/RichTextEditor";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/use-toast";
-import { useNotifications } from "@/hooks/useNotifications";
 
 const backend = import.meta.env.VITE_BACKEND;
 
@@ -57,12 +59,15 @@ const QuestionDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { createNotification } = useNotifications();
   const [question, setQuestion] = useState<Question | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [newAnswer, setNewAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false);
+  const [editedQuestion, setEditedQuestion] = useState({ title: "", description: "", tags: "" });
+  const [editingAnswerId, setEditingAnswerId] = useState<string | null>(null);
+  const [editedAnswerContent, setEditedAnswerContent] = useState("");
 
   useEffect(() => {
     const fetchQuestionDetails = async () => {
@@ -210,21 +215,6 @@ const QuestionDetailPage = () => {
         acceptedAnswerId: answerId,
       });
 
-      // Create notification for answer author
-      const acceptedAnswer = question.answers.find((a) => a._id === answerId);
-      if (acceptedAnswer && acceptedAnswer.userId._id !== user.id) {
-        try {
-          await createNotification(
-            acceptedAnswer.userId._id,
-            "answer_accepted",
-            `Your answer to "${question.title}" was accepted!`,
-            `/questions/${question._id}`
-          );
-        } catch (notifError) {
-          console.log('Notification creation failed, but answer was accepted');
-        }
-      }
-
       toast({
         title: "Answer accepted",
         description: "You have marked this answer as accepted.",
@@ -267,7 +257,7 @@ const QuestionDetailPage = () => {
       console.log('Answer content:', newAnswer);
       console.log('Token available:', !!localStorage.getItem("token"));
 
-      const response = await fetch(`${backend}/api/questions/${id}/answers`, {
+      const response = await fetch(`${backend}/api/answers/questions/${id}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -297,20 +287,6 @@ const QuestionDetailPage = () => {
         setQuestion(questionData);
       }
 
-      // Create notification for question author if it's not their own question
-      if (question && question.userId._id !== user.id) {
-        try {
-          await createNotification(
-            question.userId._id,
-            "question_answered",
-            `Someone answered your question: "${question.title}"`,
-            `/questions/${question._id}`
-          );
-        } catch (notifError) {
-          console.log('Notification creation failed, but answer was posted');
-        }
-      }
-
       toast({
         title: "Answer submitted!",
         description: "Your answer has been posted successfully.",
@@ -326,6 +302,213 @@ const QuestionDetailPage = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditQuestion = () => {
+    if (!question) return;
+    setEditedQuestion({
+      title: question.title,
+      description: question.description,
+      tags: question.tags.join(", "),
+    });
+    setIsEditingQuestion(true);
+  };
+
+  const handleCancelEditQuestion = () => {
+    setIsEditingQuestion(false);
+    setEditedQuestion({ title: "", description: "", tags: "" });
+  };
+
+  const handleSaveQuestion = async () => {
+    if (!question || !user) return;
+
+    try {
+      const response = await fetch(`${backend}/api/questions/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify(editedQuestion),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to update question');
+      }
+
+      const updatedQuestion = await response.json();
+      setQuestion(updatedQuestion);
+      setIsEditingQuestion(false);
+
+      toast({
+        title: "Question updated",
+        description: "Your question has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update question",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUserDeleteQuestion = async () => {
+    if (!user || !question) return;
+
+    if (question.userId._id !== user.id) {
+      toast({
+        title: "Permission denied",
+        description: "You can only delete your own questions",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this question and all its answers? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${backend}/api/questions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to delete question');
+      }
+
+      toast({
+        title: "Question deleted",
+        description: "The question and all its answers have been deleted.",
+      });
+
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete question",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditAnswer = (answerId: string, content: string) => {
+    setEditingAnswerId(answerId);
+    setEditedAnswerContent(content);
+  };
+
+  const handleCancelEditAnswer = () => {
+    setEditingAnswerId(null);
+    setEditedAnswerContent("");
+  };
+
+  const handleSaveAnswer = async (answerId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(`${backend}/api/answers/${answerId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ content: editedAnswerContent }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to update answer');
+      }
+
+      // Refresh question to get updated answers
+      const questionResponse = await fetch(`${backend}/api/questions/${id}`);
+      if (questionResponse.ok) {
+        const questionData = await questionResponse.json();
+        setQuestion(questionData);
+      }
+
+      setEditingAnswerId(null);
+      setEditedAnswerContent("");
+
+      toast({
+        title: "Answer updated",
+        description: "Your answer has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update answer",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUserDeleteAnswer = async (answerId: string) => {
+    if (!user || !question) return;
+
+    const answer = question.answers.find(a => a._id === answerId);
+    if (!answer) return;
+
+    if (answer.userId._id !== user.id) {
+      toast({
+        title: "Permission denied",
+        description: "You can only delete your own answers",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if it's the accepted answer
+    if (question.acceptedAnswerId === answerId) {
+      toast({
+        title: "Cannot delete",
+        description: "Cannot delete an accepted answer",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this answer? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${backend}/api/answers/${answerId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to delete answer');
+      }
+
+      // Refresh question to get updated answers
+      const questionResponse = await fetch(`${backend}/api/questions/${id}`);
+      if (questionResponse.ok) {
+        const questionData = await questionResponse.json();
+        setQuestion(questionData);
+      }
+
+      toast({
+        title: "Answer deleted",
+        description: "The answer has been deleted successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete answer",
+        variant: "destructive",
+      });
     }
   };
 
@@ -371,7 +554,7 @@ const QuestionDetailPage = () => {
     }
 
     try {
-      const response = await fetch(`${backend}/api/questions/${id}/answers/${answerId}/admin-delete`, {
+      const response = await fetch(`${backend}/api/answers/${answerId}/admin-delete`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -486,43 +669,119 @@ const QuestionDetailPage = () => {
             {/* Content */}
             <div className="flex-1">
               <div className="flex items-start justify-between mb-4">
-                <h1 className="text-2xl font-bold flex-1">{question.title}</h1>
-                {user && user.role === 'admin' && (
-                  <div className="flex items-center space-x-2 ml-4">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleDeleteQuestion}
-                      className="flex items-center space-x-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete Question</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleBanUser(question.userId._id, question.userId.username)}
-                      className="flex items-center space-x-1 text-red-600 border-red-600 hover:bg-red-50"
-                    >
-                      <UserX className="h-4 w-4" />
-                      <span>Ban User</span>
-                    </Button>
-                  </div>
+                {!isEditingQuestion ? (
+                  <h1 className="text-2xl font-bold flex-1">{question.title}</h1>
+                ) : (
+                  <input
+                    type="text"
+                    value={editedQuestion.title}
+                    onChange={(e) => setEditedQuestion({ ...editedQuestion, title: e.target.value })}
+                    className="text-2xl font-bold flex-1 border rounded px-2 py-1"
+                  />
                 )}
+                <div className="flex items-center space-x-2 ml-4">
+                  {user && question.userId._id === user.id && !isEditingQuestion && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleEditQuestion}
+                        className="flex items-center space-x-1"
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span>Edit</span>
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleUserDeleteQuestion}
+                        className="flex items-center space-x-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Delete</span>
+                      </Button>
+                    </>
+                  )}
+                  {isEditingQuestion && (
+                    <>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleSaveQuestion}
+                        className="flex items-center space-x-1"
+                      >
+                        <Save className="h-4 w-4" />
+                        <span>Save</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCancelEditQuestion}
+                        className="flex items-center space-x-1"
+                      >
+                        <X className="h-4 w-4" />
+                        <span>Cancel</span>
+                      </Button>
+                    </>
+                  )}
+                  {user && user.role === 'admin' && (
+                    <>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDeleteQuestion}
+                        className="flex items-center space-x-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Admin Delete</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBanUser(question.userId._id, question.userId.username)}
+                        className="flex items-center space-x-1 text-red-600 border-red-600 hover:bg-red-50"
+                      >
+                        <UserX className="h-4 w-4" />
+                        <span>Ban User</span>
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
 
-              <div
-                className="prose max-w-none mb-4"
-                dangerouslySetInnerHTML={{ __html: question.description }}
-              />
+              {!isEditingQuestion ? (
+                <div
+                  className="prose max-w-none mb-4"
+                  dangerouslySetInnerHTML={{ __html: question.description }}
+                />
+              ) : (
+                <div className="mb-4">
+                  <RichTextEditor
+                    content={editedQuestion.description}
+                    onChange={(content) => setEditedQuestion({ ...editedQuestion, description: content })}
+                  />
+                </div>
+              )}
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                {question.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
+              {!isEditingQuestion ? (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {question.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={editedQuestion.tags}
+                    onChange={(e) => setEditedQuestion({ ...editedQuestion, tags: e.target.value })}
+                    placeholder="Tags (comma separated)"
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+              )}
 
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -610,31 +869,86 @@ const QuestionDetailPage = () => {
                   {/* Content */}
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-4">
-                      <div
-                        className="prose max-w-none flex-1"
-                        dangerouslySetInnerHTML={{ __html: answer.content }}
-                      />
-                      {user && user.role === 'admin' && (
-                        <div className="flex items-center space-x-2 ml-4">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteAnswer(answer._id)}
-                            className="flex items-center space-x-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Delete</span>
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleBanUser(answer.userId._id, answer.userId.username)}
-                            className="flex items-center space-x-1 text-red-600 border-red-600 hover:bg-red-50"
-                          >
-                            <UserX className="h-4 w-4" />
-                            <span>Ban</span>
-                          </Button>
+                      {editingAnswerId === answer._id ? (
+                        <div className="flex-1">
+                          <RichTextEditor
+                            content={editedAnswerContent}
+                            onChange={setEditedAnswerContent}
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleSaveAnswer(answer._id)}
+                              className="flex items-center space-x-1"
+                            >
+                              <Save className="h-4 w-4" />
+                              <span>Save</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleCancelEditAnswer}
+                              className="flex items-center space-x-1"
+                            >
+                              <X className="h-4 w-4" />
+                              <span>Cancel</span>
+                            </Button>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          <div
+                            className="prose max-w-none flex-1"
+                            dangerouslySetInnerHTML={{ __html: answer.content }}
+                          />
+                          <div className="flex items-center space-x-2 ml-4">
+                            {user && answer.userId._id === user.id && question.acceptedAnswerId !== answer._id && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditAnswer(answer._id, answer.content)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  <span>Edit</span>
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleUserDeleteAnswer(answer._id)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Delete</span>
+                                </Button>
+                              </>
+                            )}
+                            {user && user.role === 'admin' && (
+                              <>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteAnswer(answer._id)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span>Admin Delete</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleBanUser(answer.userId._id, answer.userId.username)}
+                                  className="flex items-center space-x-1 text-red-600 border-red-600 hover:bg-red-50"
+                                >
+                                  <UserX className="h-4 w-4" />
+                                  <span>Ban</span>
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
 
@@ -659,7 +973,7 @@ const QuestionDetailPage = () => {
       </div>
 
       {/* Answer form */}
-      {user && (
+      {user && question.userId._id !== user.id && (
         <Card>
           <CardContent className="p-6">
             <h3 className="text-lg font-semibold mb-4">Your Answer</h3>
@@ -673,6 +987,16 @@ const QuestionDetailPage = () => {
                 {isSubmitting ? "Submitting..." : "Post Your Answer"}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {user && question.userId._id === user.id && (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground text-center">
+              You cannot answer your own question.
+            </p>
           </CardContent>
         </Card>
       )}

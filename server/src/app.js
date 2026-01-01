@@ -13,6 +13,7 @@ const authRoutes = require("./routes/auth");
 const questionRoutes = require("./routes/questions");
 const answerRoutes = require("./routes/answers");
 const adminRoutes = require("./routes/admin");
+const uploadRoutes = require("./routes/upload");
 const { router: notificationRoutes } = require("./routes/notifications");
 
 const port = process.env.PORT || 8000;
@@ -21,7 +22,7 @@ const static_path = path.join(__dirname, "../public");
 // Middleware
 app.use(cors(
   {
-    origin: ["https://stackit-odoo.onrender.com", "https://stackit-new.vercel.app"],
+    origin: ["https://stackit-odoo.onrender.com", "https://stackit-new.vercel.app", "http://localhost:8080"],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -35,8 +36,9 @@ app.use(cookieParser());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/questions", questionRoutes);
-app.use("/api", answerRoutes);
+app.use("/api/answers", answerRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/upload", uploadRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 // Health check
@@ -47,8 +49,10 @@ app.get("/", (req, res) => {
     endpoints: {
       auth: "/api/auth",
       questions: "/api/questions", 
-      answers: "/api/questions/:id/answers",
+      answers: "/api/answers/questions/:id",
+      answerVote: "/api/answers/:id/vote",
       admin: "/api/admin",
+      upload: "/api/upload/image",
       notifications: "/api/notifications"
     }
   });
