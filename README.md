@@ -7,6 +7,10 @@ A lightweight, collaborative, and user-friendly Q&A Forum Platform built for str
 **StackIt** is a minimalistic question-and-answer platform designed to foster community learning. Whether you're a student, developer, or enthusiast, StackIt provides a clean and functional environment to ask, answer, and discuss technical or domain-specific queries. Inspired by platforms like Stack Overflow, StackIt focuses on simplicity, clarity, and performance.
 
 ---
+## Live Preview
+**StackIt** : https://stackit-new.vercel.app
+
+---
 ## Features
 -  **Rich Text Editor Integration (TipTap)**
 
