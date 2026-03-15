@@ -88,5 +88,5 @@ npm start
 
 ### Contact
 For questions or issues,
-MAIL ME : sudhir.kuchara@gmail.com :)
+MAIL ME : hetpatel7627@gmail.com :)
 
